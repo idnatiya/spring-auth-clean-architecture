@@ -27,12 +27,21 @@ schema_config:
         period: 24h
 
 limits_config:
+  # 7 days. Enforced by the compactor block below; without that this value is ignored.
+  retention_period: 168h
   otlp_config:
     log_attributes:
       # Indexing level keeps {level="ERROR"} cheap. Other attributes stay structured metadata
       # on purpose: high cardinality labels blow up the stream count.
       - action: index_label
         attributes: ["level"]
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+  compaction_interval: 10m
+  retention_delete_delay: 2h
 
 ruler:
   alertmanager_url: http://localhost:9093

@@ -12,6 +12,19 @@ distributor:
         grpc:
           endpoint: 0.0.0.0:4317
 
+# The worker executes what the scheduler plans; both carry the retention value.
+backend_worker:
+  compaction:
+    block_retention: 168h
+
+# Tempo 3.0 moved compaction settings here; the top-level "compactor" block is gone.
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        # 7 days, matching the Loki retention. Default is 336h.
+        block_retention: 168h
+
 storage:
   trace:
     backend: local

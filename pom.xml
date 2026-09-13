@@ -71,6 +71,13 @@
 		</dependency>
 
 		<dependency>
+			<groupId>net.ttddyy.observation</groupId>
+			<artifactId>datasource-micrometer-spring-boot</artifactId>
+			<!-- JDBC observations: without it a trace stops at the controller and hides DB time. -->
+			<version>2.2.1</version>
+		</dependency>
+
+		<dependency>
 			<groupId>io.opentelemetry.instrumentation</groupId>
 			<artifactId>opentelemetry-logback-appender-1.0</artifactId>
 			<!-- Pinned to the instrumentation release built against otel-api 1.62.0, the version Boot 4.1.1 manages. -->

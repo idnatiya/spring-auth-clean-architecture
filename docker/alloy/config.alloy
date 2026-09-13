@@ -4,9 +4,58 @@ otelcol.receiver.otlp "default" {
   http { endpoint = "0.0.0.0:4318" }
 
   output {
-    traces = [otelcol.processor.batch.default.input]
-    logs   = [otelcol.processor.transform.logs.input]
+    traces = [otelcol.processor.filter.traces.input]
+    logs   = [otelcol.processor.filter.logs.input]
   }
+}
+
+// Connection pools and Lettuce emit parentless spans of their own (hello, info, client,
+// connection). As children inside a real request they are useful, so only the orphans go.
+otelcol.processor.filter "traces" {
+  error_mode = "ignore"
+
+  traces {
+    span = [
+      `parent_span_id.string == "0000000000000000" and name == "hello"`,
+      `parent_span_id.string == "0000000000000000" and name == "info"`,
+      `parent_span_id.string == "0000000000000000" and name == "client"`,
+      `parent_span_id.string == "0000000000000000" and name == "connection"`,
+    ]
+  }
+
+  output { traces = [otelcol.processor.tail_sampling.drop_noise.input] }
+}
+
+// Drops whole traces for infrastructure endpoints (health checks, docs polling). A plain span
+// filter would strip the root span and leave orphaned children, so the decision is per trace.
+otelcol.processor.tail_sampling "drop_noise" {
+  decision_wait = "5s"
+
+  policy {
+    name = "keep-everything-but-infra-endpoints"
+    type = "string_attribute"
+
+    string_attribute {
+      // Micrometer names the attribute "uri", not the OTel semconv "url.path".
+      key                    = "uri"
+      values                 = ["/actuator/.*", "/v3/api-docs.*", "/swagger-ui.*"]
+      enabled_regex_matching = true
+      invert_match           = true
+    }
+  }
+
+  output { traces = [otelcol.processor.batch.default.input] }
+}
+
+// Everything below INFO is framework chatter; keep the levels that describe what happened.
+otelcol.processor.filter "logs" {
+  error_mode = "ignore"
+
+  logs {
+    log_record = ["severity_number < SEVERITY_NUMBER_INFO"]
+  }
+
+  output { logs = [otelcol.processor.transform.logs.input] }
 }
 
 otelcol.processor.transform "logs" {
