@@ -47,12 +47,13 @@ otelcol.processor.tail_sampling "drop_noise" {
   output { traces = [otelcol.processor.batch.default.input] }
 }
 
-// Everything below INFO is framework chatter; keep the levels that describe what happened.
+// Only TRACE is dropped here. Volume control belongs on the app side (AUTH_LOG_LEVEL), where it
+// can be flipped per package; filtering DEBUG here would hide it exactly when it is turned on.
 otelcol.processor.filter "logs" {
   error_mode = "ignore"
 
   logs {
-    log_record = ["severity_number < SEVERITY_NUMBER_INFO"]
+    log_record = ["severity_number < SEVERITY_NUMBER_DEBUG"]
   }
 
   output { logs = [otelcol.processor.transform.logs.input] }
