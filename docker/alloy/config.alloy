@@ -1,0 +1,56 @@
+// Receives OTLP from the app, reshapes logs, then fans out: traces to Tempo, logs to Loki.
+otelcol.receiver.otlp "default" {
+  grpc { endpoint = "0.0.0.0:4317" }
+  http { endpoint = "0.0.0.0:4318" }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+    logs   = [otelcol.processor.transform.logs.input]
+  }
+}
+
+otelcol.processor.transform "logs" {
+  error_mode = "ignore"
+
+  log_statements {
+    context = "log"
+    statements = [
+      // Keep the original message; body is overwritten below.
+      `set(cache["message"], body)`,
+      // Promote the level to an attribute so Loki can index it as a label.
+      `set(attributes["level"], severity_text)`,
+      `set(body, {
+         "timestamp": FormatTime(time, "%Y-%m-%dT%H:%M:%S.%fZ"),
+         "level":     severity_text,
+         "logger":    instrumentation_scope.name,
+         "thread":    attributes["thread.name"],
+         "message":   cache["message"],
+         "trace_id":  trace_id.string,
+         "span_id":   span_id.string
+       })`,
+    ]
+  }
+
+  output { logs = [otelcol.processor.batch.default.input] }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    traces = [otelcol.exporter.otlphttp.tempo.input]
+    logs   = [otelcol.exporter.otlphttp.loki.input]
+  }
+}
+
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "http://tempo:4318"
+    tls { insecure = true }
+  }
+}
+
+otelcol.exporter.otlphttp "loki" {
+  client {
+    endpoint = "http://loki:3100/otlp"
+    tls { insecure = true }
+  }
+}
